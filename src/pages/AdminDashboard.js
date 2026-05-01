@@ -6,67 +6,55 @@ import {
   doc,
   updateDoc
 } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
 
 export default function AdminDashboard() {
   const [schools, setSchools] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const navigate = useNavigate();
+  const [students, setStudents] = useState({});
+  const [selectedSchool, setSelectedSchool] = useState(null);
 
-  // 🔐 Protect Admin Route
+  // 🔐 Protect admin
   useEffect(() => {
     const user = auth.currentUser;
-
     if (!user || user.email !== "gurnek1911@gmail.com") {
       window.location.href = "/";
     } else {
-      fetchData();
+      fetchSchools();
     }
   }, []);
 
-  // 📥 Fetch Data
-  const fetchData = async () => {
-    const schoolSnap = await getDocs(collection(db, "schools"));
-    const paymentSnap = await getDocs(collection(db, "payments"));
-
-    setSchools(schoolSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    setPayments(paymentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  // 🏫 Fetch schools
+  const fetchSchools = async () => {
+    const snap = await getDocs(collection(db, "schools"));
+    setSchools(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
-  // ✅ Approve School
+  // 👨‍🎓 Fetch students of selected school
+  const fetchStudents = async (schoolId) => {
+    const snap = await getDocs(collection(db, "schools", schoolId, "students"));
+
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    setStudents(prev => ({ ...prev, [schoolId]: data }));
+    setSelectedSchool(schoolId);
+  };
+
+  // ✅ Approve school
   const approveSchool = async (id) => {
     await updateDoc(doc(db, "schools", id), {
       isApproved: true,
     });
-
-    alert("School Approved ✅");
-    fetchData();
-  };
-
-  // 💳 Approve Payment (optional)
-  const approvePayment = async (id) => {
-    await updateDoc(doc(db, "payments", id), {
-      status: "approved",
-    });
-
-    alert("Payment Approved 💰");
-    fetchData();
+    fetchSchools();
   };
 
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>⚡ Admin Panel</h1>
 
-      <button style={styles.back} onClick={() => navigate("/")}>
-        Logout
-      </button>
-
-      {/* 🏫 Schools Section */}
+      {/* 🏫 Schools */}
       <h2 style={styles.section}>🏫 Schools</h2>
 
       {schools.map((s) => (
         <div key={s.id} style={styles.card}>
-          <p><b>ID:</b> {s.id}</p>
           <p><b>Name:</b> {s.name || "Not set"}</p>
           <p><b>Paid:</b> {s.isPaid ? "✅" : "❌"}</p>
           <p><b>Approved:</b> {s.isApproved ? "✅" : "❌"}</p>
@@ -76,31 +64,33 @@ export default function AdminDashboard() {
               style={styles.approve}
               onClick={() => approveSchool(s.id)}
             >
-              Approve School
+              Approve
             </button>
           )}
+
+          <button
+            style={styles.view}
+            onClick={() => fetchStudents(s.id)}
+          >
+            View Students
+          </button>
         </div>
       ))}
 
-      {/* 💳 Payments Section */}
-      <h2 style={styles.section}>💳 Payments</h2>
+      {/* 👨‍🎓 Students View */}
+      {selectedSchool && (
+        <div style={styles.studentSection}>
+          <h2>👨‍🎓 Students of {selectedSchool}</h2>
 
-      {payments.map((p) => (
-        <div key={p.id} style={styles.card}>
-          <p><b>School ID:</b> {p.schoolId}</p>
-          <p><b>Amount:</b> ₹{p.amount}</p>
-          <p><b>Status:</b> {p.status}</p>
-
-          {p.status !== "approved" && (
-            <button
-              style={styles.approve}
-              onClick={() => approvePayment(p.id)}
-            >
-              Approve Payment
-            </button>
-          )}
+          {(students[selectedSchool] || []).map((st) => (
+            <div key={st.id} style={styles.studentCard}>
+              <p><b>Name:</b> {st.name}</p>
+              <p><b>Class:</b> {st.class}</p>
+              <p><b>Roll No:</b> {st.rollNo}</p>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -112,37 +102,39 @@ const styles = {
     color: "#fff",
     padding: 30,
   },
-  title: {
-    fontSize: 32,
-    marginBottom: 20,
-  },
-  section: {
-    marginTop: 30,
-    marginBottom: 10,
-    color: "#94a3b8",
-  },
+  title: { fontSize: 30 },
+  section: { marginTop: 30, color: "#94a3b8" },
   card: {
     background: "#0f172a",
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 15,
+    padding: 16,
+    borderRadius: 10,
+    marginBottom: 12,
   },
   approve: {
     marginTop: 10,
-    padding: "8px 16px",
+    marginRight: 10,
     background: "#22c55e",
     border: "none",
+    padding: "6px 12px",
     color: "#fff",
     borderRadius: 6,
-    cursor: "pointer",
   },
-  back: {
-    marginBottom: 20,
-    padding: "8px 16px",
-    background: "#ef4444",
+  view: {
+    background: "#6366f1",
     border: "none",
+    padding: "6px 12px",
     color: "#fff",
     borderRadius: 6,
-    cursor: "pointer",
+  },
+  studentSection: {
+    marginTop: 40,
+    background: "#020617",
+    padding: 20,
+  },
+  studentCard: {
+    background: "#1e293b",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
   },
 };
